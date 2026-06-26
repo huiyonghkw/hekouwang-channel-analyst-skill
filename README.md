@@ -58,6 +58,34 @@ git clone https://github.com/huiyonghkw/hekouwang-channel-analyst-skill.git \
 
 报告字体默认引用 `hekouwang-content-factory` 内置的 Anthropic 字体；没有时用 `build_report.py --font-dir` 指定，或换系统字体。
 
+## 生态依赖（与哪些 skill / 工具协作）
+
+性质＝**软依赖**：核心三件套（pull / analyze / build_report）能独立跑，下面是协作关系而非硬绑定。
+
+| 依赖 | 类型 | 用在哪 | 缺了会怎样 |
+|---|---|---|---|
+| [OpenCLI](https://github.com/jackwener/opencli) / agent-reach | 工具（必需取数） | 复用 Chrome 登录态拉创作者后台 | 取不到数；但已有 CSV 仍可分析 + 出报告 |
+| `hekouwang-content-factory` | 软依赖 | 报告 V2 米白字体 / 视觉；封面返工、小红书图也走它 | 字体回退——`build_report.py --font-dir` 换系统字体即可 |
+| `hekouwang-claude-skill-doctor-skill` | 质量 | 本 skill 自身体检（现 100/100） | 不影响运行 |
+| Apache ECharts | 内置 | 报告图表（已内联进 `assets/`） | 已随仓库分发，无需联网 |
+
+## 免费内核 vs 增值付费
+
+| | 免费（本开源仓库） | 增值（付费服务） |
+|---|---|---|
+| 是什么 | `pull/analyze/build_report` 三件套 + 自用版报告 | 人的解读 + 品牌报告 + 配套内容生产 |
+| 谁用 | 任何人 `git clone` 本地跑 | 找 [@huiyonghkw](https://github.com/huiyonghkw) 下单的客户 |
+
+**一句话口径**：**跑工具免费；"看得懂的解读 + 好看的品牌报告 + 照着改的内容生产"是付费。**
+
+增值三层（叠加，靠组合其它 skill 交付）：
+
+1. **解读层**：把数据翻成"下一步具体做什么"——单次诊断 / 周报 / 月度陪跑。工具给数据，人给判断。
+2. **品牌报告层**：客户版报告（`build_report.py --mode client`，落款换服务方品牌 + CTA），用 content-factory 私有品牌字体/版式。
+3. **内容生产层**：诊断指出"封面返工 / 选题换"后直接承接生产——图文走 `hekouwang-content-factory`、财经走 `hekouwang-stock-data-reader-skill`、演示走 `hekouwang-yandu-deck-skill`。
+
+> 边界铁律：**开源仓库只放免费内核**（不含私有字体、不含任何客户数据）；增值部分靠"人 + 私有资产 + skill 组合"交付。完整服务化方案见 [`references/04-服务化.md`](references/04-服务化.md)。
+
 ## 第三方
 
 - [Apache ECharts](https://echarts.apache.org/)（`assets/echarts.min.js`）— Apache License 2.0。
