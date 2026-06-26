@@ -115,7 +115,7 @@ def build(R, font_dir):
         adv += (f'<div class="adv"><div class="adv-tag" style="background:{PRI_COLOR.get(pri,"#8a877e")}">{esc(pri)}</div>'
                 f'<div><div class="adv-h">{esc(a.get("环节",""))}</div>'
                 f'<div class="adv-t">{esc(a.get("建议",""))}</div></div></div>')
-    adv_sec = f'<div class="card"><div class="sec-h">行动建议（按优先级）</div>{adv}</div>' if adv else ""
+    adv_sec = f'<div class="card"><div class="sec-h">本周怎么做（按优先级 · 每条挂着你的数据）</div>{adv}</div>' if adv else ""
 
     # 图表数据
     chart_data = {

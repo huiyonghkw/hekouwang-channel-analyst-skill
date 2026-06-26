@@ -94,13 +94,16 @@ def main():
         }
 
     # ── 逐篇红黑榜（最新快照） + 单篇环比 ──
-    # 同日多次拉取 → 按标题去重，保留最后一次
+    # 同日多次拉取 / 标题被改 → 按"发布时间"去重（笔记的稳定身份；标题可随时编辑），
+    # 保留最后一次（=最新标题与数据）。发布时间缺失时回退用标题。
+    def nkey(r):
+        return (r.get("发布时间") or "").strip() or r.get("标题")
     cur_map = {}
     for r in notes_raw:
         if r["拉取日期"] == latest:
-            cur_map[r["标题"]] = r
+            cur_map[nkey(r)] = r
     cur_notes = list(cur_map.values())
-    prev_map = {r["标题"]: r for r in notes_raw if r["拉取日期"] == prev} if prev else {}
+    prev_map = {nkey(r): r for r in notes_raw if r["拉取日期"] == prev} if prev else {}
     for r in cur_notes:
         v = num(r.get("观看")) or 0
         lk, cl = num(r.get("赞")) or 0, num(r.get("藏")) or 0
@@ -111,7 +114,7 @@ def main():
             "出池": v >= COLD,
             "藏赞合计": lk + cl,
         }
-        pv = prev_map.get(r.get("标题"))
+        pv = prev_map.get(nkey(r))
         if pv and num(pv.get("观看")) is not None:
             item["观看环比"] = v - num(pv.get("观看"))
         R["笔记"].append(item)
@@ -148,47 +151,50 @@ def main():
     adv = R["建议"]
 
     if notes:
+        # 标杆笔记 = 观看最高的一条（账号当前唯一的"成功正样本"）；建议围绕"复制它"展开
+        winner = max(notes, key=lambda n: n["观看"])
+        rest = [n for n in notes if n is not winner]
+        rest_max = max((n["观看"] for n in rest), default=0)
+
         if avg_v < COLD:
             R["诊断"].append(
-                f"核心病灶：内容没出冷启动池。{len(notes)} 篇均观看仅 {avg_v:.0f}，"
-                f"出池(≥{COLD}) 仅 {len(out_pool)} 篇。")
-            adv.append({"优先级": "P0", "环节": "封面 CTR",
-                        "建议": "小红书冷启动 80% 看首图。把封面从素编辑卡改成信息流抓眼版（大字+数字反差），是出池第一杠杆。"})
-            adv.append({"优先级": "P0", "环节": "标题",
-                        "建议": "标题埋搜索词 + 留悬念，和封面一起决定点击率。"})
+                f"还没跑通出池：{len(notes)} 篇均观看 {avg_v:.0f}，仅 {len(out_pool)} 篇破 {COLD}。")
         else:
-            R["诊断"].append(f"内容能出池：均观看 {avg_v:.0f}，{len(out_pool)} 篇破 {COLD}。重点转向转化。")
+            R["诊断"].append(
+                f"已有出池正样本：均观看 {avg_v:.0f}，{len(out_pool)}/{len(notes)} 篇破 {COLD}"
+                f"——问题从'出不出池'变成'能不能复制'。")
 
+        # P0：复制标杆（唯一最高优先，实验化、挂具体数字）
+        gap = f"，其余仅 {rest_max}" if rest and rest_max < winner["观看"] else ""
+        rep = (f"《{winner['标题']}》{winner['观看']} 观看是你目前的正样本{gap}。"
+               f"别回头返工沉掉的笔记——拆这条的选题角度 / 标题句式 / 封面形式，"
+               f"下一条只复制它的封面公式，验证能否再破 {int(winner['观看'] * 0.8)} 观看。")
+        if winner.get("观看环比", 0) > 0:
+            rep += f"它还在涨（+{winner['观看环比']}），先置顶吃满长尾。"
+        adv.append({"优先级": "P0", "环节": "复制标杆", "建议": rep})
+
+    # P1：基于真实漏斗指出瓶颈在哪、别在哪儿白费力
     hr = R["漏斗"].get("观看转主页率")
-    if hr is not None and hr < LOW_HOME_RATE:
-        R["诊断"].append(f"观看→主页率仅 {hr}%（<{LOW_HOME_RATE}%），看的人没被引去主页。")
-        adv.append({"优先级": "P1", "环节": "完播 + 关注钩子",
-                    "建议": "首图制造往下滑的理由提完播；正文结尾加'系列承诺+关注追更'，把读者从单篇引到主页。"})
-
     fr = R["漏斗"].get("主页转涨粉率")
-    if fr is not None:
-        if fr < LOW_FOLLOW_RATE:
-            R["诊断"].append(f"主页→涨粉率 {fr}%（偏低），主页没留住人。")
-            adv.append({"优先级": "P2", "环节": "主页装修",
-                        "建议": "置顶最能代表人设的笔记、bio 用一句强 slogan、保持封面风格统一，提主页转化。"})
-        else:
-            R["诊断"].append(f"主页→涨粉率 {fr}%（健康），点进主页的人愿意关注——放大流量即可。")
+    if hr is not None and fr is not None:
+        if fr >= LOW_FOLLOW_RATE and hr < GOOD_HOME_RATE:
+            R["诊断"].append(f"瓶颈在'看到→点进主页'（{hr}%），不在'点进→关注'（{fr}% 已健康）。")
+            adv.append({"优先级": "P1", "环节": "把力气下对环节",
+                        "建议": f"主页转化已健康（{fr}%），别在关注钩子上耗。这阶段唯一杠杆是把'观看'做大（=复制标杆），转化是粉丝过千后的事。"})
+        elif fr < LOW_FOLLOW_RATE:
+            R["诊断"].append(f"瓶颈在'点进主页→关注'（{fr}% 偏低），人来了没留住。")
+            adv.append({"优先级": "P1", "环节": "主页留人",
+                        "建议": f"主页转化仅 {fr}%。置顶标杆笔记、bio 一句话讲清'关注你能得到什么'、封面风格统一，比拉新更省力。"})
 
-    # 爬坡笔记 → 建议放大
-    climbing = sorted([n for n in notes if n.get("观看环比", 0) > 0],
-                      key=lambda x: x["观看环比"], reverse=True)
-    if climbing:
-        top = climbing[0]
-        adv.append({"优先级": "P1", "环节": "乘胜追击",
-                    "建议": f"《{top['标题']}》还在爬（+{top['观看环比']} 观看），是当前最能跑的内容。考虑置顶，并照这个方向再做一条。"})
-    # 高藏赞比但低观看 = 好内容没被看见
-    hidden = [n for n in notes if not n["出池"] and n["藏赞合计"] >= 5]
-    if hidden:
-        adv.append({"优先级": "P1", "环节": "好内容返工",
-                    "建议": f"《{hidden[0]['标题']}》藏赞不低但观看没起来——内容是好的，给它换个抓眼封面+标题重发，性价比最高。"})
+    # 数据诚实：样本薄时标注置信度
+    snaps = R["数据区间"].get("总快照数", 1)
+    if snaps < 3 or len(notes) < 5:
+        R["诊断"].append(
+            f"⚠️ 样本薄（{snaps} 个快照 / {len(notes)} 篇），以上是方向性判断，需继续攒数据验证。")
 
+    # 底线（压成一行）
     adv.append({"优先级": "底线", "环节": "合规",
-                "建议": "只做内容/封面/标题/节奏优化，不买量、不互关刷粉。买来的是僵尸粉，伤账号权重，也毁私域转化。"})
+                "建议": "只优化内容本身，不买量、不互关——僵尸粉伤权重、毁私域转化。"})
 
     # ── 基准对照（你的指标 vs 健康区间） ──
     def rate_grade(v, low, good):
@@ -234,17 +240,8 @@ def main():
                     "对比当前": round((need_fans / fans_per_view) / OUT_POOL_VIEWS, 1),
                 }
 
-    # ── 本周行动清单（从判决 + 建议提炼成可勾选待办） ──
-    todo = []
-    for n in R["笔记"]:
-        if n["判决色"] == "good" and "置顶" in n["判决"]:
-            todo.append(f"把《{n['标题']}》置顶（还在爬，最能跑）")
-        elif n["判决"].startswith("♻️"):
-            todo.append(f"给《{n['标题']}》换抓眼封面+标题重发（好内容没被看见）")
-    todo.append("下一条笔记：封面用信息流抓眼版（大字+数字反差），标题埋搜索词+悬念")
-    todo.append("每篇结尾加'系列承诺 + 关注追更'钩子，把读者从单篇引到主页")
-    todo.append("发布后 1 小时内自己引导前几条评论，帮冲出冷启动池")
-    R["行动清单"] = todo[:6]
+    # ── 本周行动清单：已并入"行动建议"（避免与建议重复），不再单列 ──
+    R["行动清单"] = []
 
     with open(out, "w", encoding="utf-8") as f:
         json.dump(R, f, ensure_ascii=False, indent=2)
