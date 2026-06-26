@@ -243,6 +243,75 @@ def main():
     # ── 本周行动清单：已并入"行动建议"（避免与建议重复），不再单列 ──
     R["行动清单"] = []
 
+    # ── 单篇详情：限流检测 / 流量结构 / 受众画像 / 封面CTR（creator-note-detail） ──
+    detail_raw = read_csv(os.path.join(D, "小红书单篇详情.csv"))
+    det_map = {}
+    for r in detail_raw:
+        if r.get("拉取日期") == latest:
+            det_map[r.get("note_id")] = r          # 同 note 多次拉取取最后
+    det = list(det_map.values())
+    SRC_KEYS = ["视频推荐", "首页推荐", "关注页面", "搜索", "个人主页", "其他来源"]
+    if det:
+        # 流量结构（按观看加权聚合，只统计有来源数据的笔记）
+        agg = {k: 0.0 for k in SRC_KEYS}
+        wsum = 0.0
+        for r in det:
+            w = num(r.get("观看")) or 0
+            if w <= 0 or num(r.get("推荐占比")) is None:
+                continue
+            wsum += w
+            for k in SRC_KEYS:
+                agg[k] += (num(r.get(k)) or 0) / 100.0 * w
+        flow = {k: round(agg[k] / wsum * 100, 1) for k in SRC_KEYS} if wsum else {}
+        # 限流嫌疑：有来源数据但推荐占比 < 40%（平台没把它推进池）
+        flagged = [{"标题": r.get("标题"), "推荐占比": num(r.get("推荐占比")), "观看": num(r.get("观看")) or 0}
+                   for r in det if num(r.get("推荐占比")) is not None and num(r.get("推荐占比")) < 40]
+        # 封面 CTR
+        ctrs = [(r.get("标题"), num(r.get("封面点击率"))) for r in det if num(r.get("封面点击率")) is not None]
+        avg_ctr = round(sum(c for _, c in ctrs) / len(ctrs), 1) if ctrs else None
+        best_ctr = max(ctrs, key=lambda x: x[1]) if ctrs else None
+        # 受众画像（按观看加权）
+        gm = gf = gw = 0.0
+        for r in det:
+            w = num(r.get("观看")) or 0
+            mv = num(r.get("男"))
+            if mv is not None and w > 0:
+                gm += mv * w
+                gf += (num(r.get("女")) or 0) * w
+                gw += w
+        gender = {"男": round(gm / gw), "女": round(gf / gw)} if gw else {}
+
+        def top_weighted(col):
+            tally = {}
+            for r in det:
+                v = (r.get(col) or "").strip()
+                w = num(r.get("观看")) or 0
+                if v and w > 0:
+                    tally[v] = tally.get(v, 0) + w
+            return max(tally, key=tally.get) if tally else None
+        R["流量与限流"] = {
+            "流量结构": flow, "限流嫌疑": flagged, "覆盖笔记": len([r for r in det if num(r.get("推荐占比")) is not None]),
+            "平均封面CTR": avg_ctr,
+            "最高CTR": ({"标题": best_ctr[0], "值": best_ctr[1]} if best_ctr else None),
+        }
+        R["受众画像"] = {"性别": gender, "主年龄": top_weighted("主年龄"),
+                     "top城市": top_weighted("top城市"), "top兴趣": top_weighted("top兴趣")}
+        # 诊断增强
+        if flow:
+            rec_total = round(flow.get("视频推荐", 0) + flow.get("首页推荐", 0), 1)
+            sea = flow.get("搜索", 0)
+            R["诊断"].append(
+                f"流量结构：{rec_total}% 推荐 · {sea}% 搜索 · {round(flow.get('关注页面', 0), 1)}% 关注"
+                + ("——几乎全靠推荐，搜索沉淀近零、长尾弱。" if sea < 3 else "——已有搜索长尾。"))
+        if avg_ctr is not None:
+            R["诊断"].append(
+                f"平均封面点击率 {avg_ctr}%（信息流健康区 ~5–10%）"
+                + ("，封面是当前最大可提升项。" if avg_ctr < 5 else "，封面及格。"))
+        if gender:
+            R["诊断"].append(
+                f"受众：男 {gender['男']}% · 主力 {R['受众画像']['主年龄']} · 兴趣偏 {R['受众画像']['top兴趣']}"
+                "——和'AI工作流/程序员'人设吻合，选题可继续往这群人的真实痛点扎。")
+
     # ── 结论（判断优先：一句话状态 + 本周唯一一件事 + 止损） ──
     winner = max(notes, key=lambda n: n["观看"]) if notes else None
     concl = {}
@@ -250,10 +319,20 @@ def main():
         concl = {"状态": "账号刚起步，还没有可分析的笔记。",
                  "本周一件事": "先发 1–2 条，让分析师有数据可看。", "别做": ""}
     elif avg_v < COLD:
-        concl = {
-            "状态": f"还卡在冷启动池：{len(notes)} 篇里只有 {len(out_pool)} 篇破 {COLD} 观看。",
-            "本周一件事": f"下一条主攻封面：参考观看最高的《{winner['标题']}》（{winner['观看']}），首图改成信息流抓眼版，目标破 {COLD} 出冷启动池。",
-            "别做": "别一次想优化所有指标——这阶段只有'被看见'要紧，关注钩子 / 主页装修都往后放。"}
+        ctr = (R.get("流量与限流") or {}).get("平均封面CTR")
+        bc = (R.get("流量与限流") or {}).get("最高CTR")
+        if ctr is not None and ctr >= 5:
+            # 封面点击率及格 → 瓶颈不在封面，在选题相关性 / 完播
+            hook = f"（你封面最高的《{bc['标题']}》{bc['值']}% 就是选题戳中了）" if bc else ""
+            concl = {
+                "状态": f"还没出池（{len(notes)} 篇仅 {len(out_pool)} 篇破 {COLD}），但平均封面点击率 {ctr}% 及格——卡点不在封面，在选题相关性和完播。",
+                "本周一件事": f"下一条别再纠结封面：选题往受众真实痛点扎{hook}，首图给个'往下滑的理由'提完播。",
+                "别做": "别盲目换封面——CTR 数据说明封面不是瓶颈，是进来的人没看完 / 选题不够戳。"}
+        else:
+            concl = {
+                "状态": f"还卡在冷启动池：{len(notes)} 篇里只有 {len(out_pool)} 篇破 {COLD} 观看，封面点击率也偏低。",
+                "本周一件事": f"下一条主攻封面：参考观看最高的《{winner['标题']}》（{winner['观看']}），首图改成信息流抓眼版，目标破 {COLD}。",
+                "别做": "别一次想优化所有指标——这阶段只有'被看见'要紧，关注钩子 / 主页装修都往后放。"}
     else:
         tgt = int(winner["观看"] * 0.8)
         别做 = ("别回头返工已经沉底的笔记，性价比最低；先把标杆复制出第二条。"

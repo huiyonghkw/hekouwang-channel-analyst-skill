@@ -74,6 +74,64 @@ def append_csv(path, header, rows):
         w.writerows(rows)
 
 
+def jload(out):
+    import json
+    try:
+        return json.loads(out) if out else None
+    except ValueError:
+        return None
+
+
+def jnum(s):
+    m = re.search(r"-?\d+\.?\d*", str(s).replace(",", ""))
+    return m.group() if m else ""
+
+
+def norm_date(s):
+    """'2026年06月25日 22:03' → '2026-06-25 22:03'（对齐发布时间去重键）。"""
+    m = re.search(r"(\d{4})\D+(\d{1,2})\D+(\d{1,2})\D*(?:(\d{1,2}):(\d{2}))?", str(s))
+    if not m:
+        return str(s)
+    y, mo, d = m.group(1), m.group(2).zfill(2), m.group(3).zfill(2)
+    hm = f" {m.group(4).zfill(2)}:{m.group(5)}" if m.group(4) else ""
+    return f"{y}-{mo}-{d}{hm}"
+
+
+# 单篇详情：观看来源 + 受众画像（creator-note-detail，本地创作者后台，无需主站登录）
+DETAIL_SRC = ["视频推荐", "首页推荐", "关注页面", "搜索", "个人主页", "其他来源"]
+DETAIL_COLS = (["拉取日期", "note_id", "标题", "曝光", "观看", "封面点击率", "平均观看时长", "涨粉"]
+               + DETAIL_SRC + ["推荐占比", "男", "女", "主年龄", "主年龄占比", "top城市", "top兴趣"])
+
+
+def note_detail_cells(nid, log):
+    """拉单篇详情 → 对齐 DETAIL_COLS[3:] 的单元格列表；拉不到/无数据返回 None。"""
+    rows = jload(run(["opencli", "xiaohongshu", "creator-note-detail", nid, "-f", "json"], log))
+    if not rows:
+        return None
+    base, src, gender, age, city, interest = {}, {}, {}, {}, {}, {}
+    for r in rows:
+        sec, m, v = r.get("section"), r.get("metric"), r.get("value")
+        if sec == "基础数据":
+            base[m] = jnum(v)
+        elif sec == "观看来源":
+            src[m] = jnum(v)
+        elif sec == "观众画像" and "/" in str(m):
+            grp, key = m.split("/", 1)
+            {"性别": gender, "年龄": age, "城市": city, "兴趣": interest}.get(grp, {})[key] = jnum(v)
+
+    def fv(x):
+        return float(x) if x not in ("", None) else 0.0
+    rec = round(fv(src.get("视频推荐")) + fv(src.get("首页推荐")), 1) if src else ""
+    top_age = max(age, key=lambda k: fv(age[k])) if age else ""
+    top_city = max(city, key=lambda k: fv(city[k])) if city else ""
+    top_int = max(interest, key=lambda k: fv(interest[k])) if interest else ""
+    return ([base.get("曝光数", ""), base.get("观看数", ""), base.get("封面点击率", ""),
+             base.get("平均观看时长", ""), base.get("涨粉数", "")]
+            + [src.get(k, "") for k in DETAIL_SRC]
+            + [rec, gender.get("男性", ""), gender.get("女性", ""),
+               top_age, age.get(top_age, "") if top_age else "", top_city, top_int])
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-dir", default=None)
@@ -128,21 +186,26 @@ def main():
     else:
         ok = False; log("stats 失败")
 
-    # 3) 逐篇数据 → 数据日志
-    notes = run(["opencli", "xiaohongshu", "creator-notes-summary"], log)
+    # 3) 逐篇数据（全部已发布笔记）→ 数据日志 + 单篇详情(限流/来源/画像/CTR)
+    notes = jload(run(["opencli", "xiaohongshu", "creator-notes", "-f", "json"], log))
+    notes = notes if isinstance(notes, list) else (notes or {}).get("data") or (notes or {}).get("notes") or []
     if notes:
-        rows = [[TODAY, b.get("title", ""), b.get("published_at", ""),
-                 b.get("views", ""), b.get("likes", ""),
-                 b.get("collects", ""), b.get("comments", ""),
-                 b.get("avg_view_time", "")]
-                for b in parse_blocks(notes) if "title" in b]
-        if rows:
-            append_csv(os.path.join(D, "小红书数据日志.csv"),
-                       ["拉取日期", "标题", "发布时间", "观看", "赞", "藏", "评", "完播"],
-                       rows)
-            log(f"notes ok {len(rows)} 篇")
-        else:
-            ok = False; log("notes 解析 0 篇")
+        log_rows, detail_rows = [], []
+        for n in notes:
+            nid = n.get("id") or n.get("note_id")
+            title = n.get("title", "")
+            pub = norm_date(n.get("date", ""))
+            cells = note_detail_cells(nid, log) if nid else None
+            avg_time = cells[3] if cells else ""   # 平均观看时长 作完播代理
+            log_rows.append([TODAY, title, pub, n.get("views", ""), n.get("likes", ""),
+                             n.get("collects", ""), n.get("comments", ""), avg_time])
+            if cells:
+                detail_rows.append([TODAY, nid, title] + cells)
+        append_csv(os.path.join(D, "小红书数据日志.csv"),
+                   ["拉取日期", "标题", "发布时间", "观看", "赞", "藏", "评", "完播"], log_rows)
+        if detail_rows:
+            append_csv(os.path.join(D, "小红书单篇详情.csv"), DETAIL_COLS, detail_rows)
+        log(f"notes ok {len(log_rows)} 篇 | 详情 {len(detail_rows)} 篇")
     else:
         ok = False; log("notes 失败")
 

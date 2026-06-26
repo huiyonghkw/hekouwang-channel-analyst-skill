@@ -145,6 +145,36 @@ def build(R, font_dir):
                 f'<div class="adv-t">{esc(a.get("建议",""))}</div></div></div>')
     adv_sec = f'<div class="card"><div class="sec-h">怎么做（按优先级 · 每条挂着你的数据）</div>{adv}</div>' if adv else ""
 
+    # 流量体检 · 限流检测（creator-note-detail）
+    fl = R.get("流量与限流", {})
+    flow_sec = ""
+    if fl and fl.get("流量结构"):
+        chips = "".join(
+            f'<div class="recap-chip"><span class="rc-k">{esc(k)}</span>'
+            f'<span class="rc-d up" style="color:var(--text)">{esc(v)}%</span></div>'
+            for k, v in fl["流量结构"].items() if v and v > 0)
+        flagged = fl.get("限流嫌疑", [])
+        status = ('<div class="recap-exe up">✅ 未见限流：主要笔记仍在推荐池内。</div>' if not flagged else
+                  f'<div class="recap-exe down">⚠ {len(flagged)} 篇推荐占比 &lt;40%，可能没进/被限推荐池：'
+                  + "、".join(esc(x["标题"][:14]) for x in flagged[:3]) + "</div>")
+        ctr, bc = fl.get("平均封面CTR"), fl.get("最高CTR")
+        ctr_h = (f'<div class="recap-task" style="margin-top:14px">平均封面点击率 <b>{esc(ctr)}%</b>'
+                 + (f'，最高《{esc(bc["标题"][:18])}》{esc(bc["值"])}%' if bc else "") + "</div>") if ctr is not None else ""
+        flow_sec = (f'<div class="card"><div class="sec-h">流量体检 · 限流检测（{fl.get("覆盖笔记",0)} 篇有来源数据）</div>'
+                    f'<div class="recap-chips">{chips}</div>{status}{ctr_h}</div>')
+
+    # 受众画像（谁在看你）
+    pe = R.get("受众画像", {})
+    persona_sec = ""
+    if pe and pe.get("性别"):
+        g = pe["性别"]
+        pchips = (f'<div class="recap-chip"><span class="rc-k">性别</span><span class="rc-v">男 {esc(g.get("男"))}% · 女 {esc(g.get("女"))}%</span></div>'
+                  f'<div class="recap-chip"><span class="rc-k">主力年龄</span><span class="rc-v">{esc(pe.get("主年龄"))}</span></div>'
+                  f'<div class="recap-chip"><span class="rc-k">Top 城市</span><span class="rc-v">{esc(pe.get("top城市"))}</span></div>'
+                  f'<div class="recap-chip"><span class="rc-k">Top 兴趣</span><span class="rc-v">{esc(pe.get("top兴趣"))}</span></div>')
+        persona_sec = (f'<div class="card"><div class="sec-h">受众画像 · 谁在看你</div>'
+                       f'<div class="recap-chips">{pchips}</div></div>')
+
     # 图表数据
     chart_data = {
         "funnel": [{"name": s, "value": fn.get(s) or 0} for s in ("观看", "主页访问", "涨粉")],
@@ -164,7 +194,8 @@ def build(R, font_dir):
         account=esc(R.get("账号", "")), platform=esc(R.get("平台", "")), gen=esc(R.get("生成时间", "")),
         period=esc(f'最新 {di.get("最新","—")} · 共 {di.get("总快照数",0)} 个数据快照'),
         kpis=kpis, goal=goal_sec, base=base_sec, notes=notes_sec,
-        verdict=verdict_sec, recap=recap_sec, diag=diag_sec, adv=adv_sec)
+        verdict=verdict_sec, recap=recap_sec, diag=diag_sec, adv=adv_sec,
+        flow=flow_sec, persona=persona_sec)
 
 
 TEMPLATE = """<!DOCTYPE html><html lang="zh-CN" class="light"><head><meta charset="UTF-8">
@@ -269,7 +300,7 @@ h1{{font-size:60px;font-weight:900;letter-spacing:-.01em;margin-top:34px;line-he
 {goal}{base}
 <div class="card"><div class="sec-h">近 7 日每日趋势（观看 / 涨粉）</div>
 <div id="c_trend" class="echart" style="height:300px"></div></div>
-{notes}
+{flow}{persona}{notes}
 <div class="foot"><div class="foot-brand">会勇禾口王 · <span>数据复盘</span></div>
 <div class="foot-note">数据来源：小红书创作者中心公开后台 · 本报告为运营复盘工具，结论基于历史数据，不构成对未来表现的承诺。</div></div>
 </div>
