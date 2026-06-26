@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 渠道数据分析师 · 报告生成器 v3（判断优先版）
-读 report_data.json → 输出 V2 米白「渠道数据复盘报告」HTML：
+读 report_data.json → 输出 V1 暗黑「渠道数据复盘报告」HTML：
 结构＝① 结论(状态+本周一件事+止损) → ② 上期复盘(闭环验证) → ③ 诊断+建议
 → ④ 支撑数据(ECharts 漏斗/仪表盘/趋势/红黑榜 + 目标测算 + 基准，降级为证据)。
 ECharts 内联（单文件、离线可截图）。
@@ -15,7 +15,7 @@ import argparse, html, json, os
 SKILL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEF_FONT = os.path.expanduser("~/.claude/skills/hekouwang-content-factory/assets/fonts")
 ECHARTS = os.path.join(SKILL, "assets", "echarts.min.js")
-PRI_COLOR = {"P0": "#c0392b", "P1": "#c15f3c", "P2": "#5c6b7a", "底线": "#8a877e"}
+PRI_COLOR = {"P0": "#ff5b6e", "P1": "#7c5cfc", "P2": "#7c5cfc", "底线": "#4a4a57"}
 GRADE_CLS = {"健康": "ok", "好": "ok", "及格": "warn", "偏低": "bad", "—": ""}
 VERDICT_CLS = {"good": "ok", "warn": "warn", "bad": "bad"}
 
@@ -189,7 +189,7 @@ def build(R, font_dir):
         verdict=verdict_sec, recap=recap_sec, diag=diag_sec, adv=adv_sec, flow=flow_sec)
 
 
-TEMPLATE = """<!DOCTYPE html><html lang="zh-CN" class="light"><head><meta charset="UTF-8">
+TEMPLATE = """<!DOCTYPE html><html lang="zh-CN" class="dark"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>渠道数据复盘报告</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -197,17 +197,17 @@ TEMPLATE = """<!DOCTYPE html><html lang="zh-CN" class="light"><head><meta charse
 <style>
 @font-face{{font-family:'Anthropic Sans';src:url('{font_dir}/anthropicSans.woff2') format('woff2');font-weight:300 800;font-display:swap}}
 @font-face{{font-family:'Anthropic Mono';src:url('{font_dir}/anthropicMono.woff2') format('woff2');font-weight:300 800;font-display:swap}}
-:root{{--bg:#faf9f5;--surface:#fff;--surface2:#f4f2eb;--border:rgba(20,20,19,.10);
---text:#1a1a18;--text2:#56544e;--text3:#8a877e;--accent:#c15f3c;--accent2:#5c6b7a;--accent3:#a07a3c;--danger:#c0392b;--good:#137333;
+:root{{--bg:#050508;--surface:#0e0e15;--surface2:#15151f;--border:rgba(255,255,255,.09);
+--text:#f0f0f4;--text2:#a6a6b2;--text3:#6a6a78;--accent:#00d4aa;--accent2:#7c5cfc;--accent3:#f5b942;--danger:#ff5b6e;--good:#00d4aa;
 --font:'Anthropic Sans','Noto Sans SC','PingFang SC',system-ui,sans-serif;
 --mono:'Anthropic Mono','PingFang SC',ui-monospace,monospace;
---shadow:0 1px 2px rgba(20,20,19,.04),0 8px 24px rgba(20,20,19,.06)}}
+--shadow:0 1px 2px rgba(0,0,0,.5),0 10px 34px rgba(0,0,0,.55)}}
 *{{margin:0;padding:0;box-sizing:border-box}}
-body{{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;line-height:1.7;padding:56px 24px 80px}}
+body{{background:radial-gradient(1200px 620px at 15% -6%,rgba(124,92,252,.12),transparent 60%),radial-gradient(1000px 520px at 100% 0%,rgba(0,212,170,.08),transparent 55%),var(--bg);background-attachment:fixed;color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;line-height:1.7;padding:56px 24px 80px}}
 .wrap{{max-width:1080px;margin:0 auto}}
 .sysbar{{display:flex;justify-content:space-between;font-family:var(--mono);font-size:15px;letter-spacing:.16em;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);padding-bottom:18px}}
 .sys-l{{display:flex;align-items:center;gap:10px;color:var(--text2)}}
-.live{{width:10px;height:10px;border-radius:50%;background:var(--accent)}}
+.live{{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent),0 0 4px var(--accent)}}
 .sys-r{{color:var(--accent)}}
 h1{{font-size:60px;font-weight:900;letter-spacing:-.01em;margin-top:34px;line-height:1.1}}
 .subline{{font-size:21px;color:var(--text2);margin-top:14px}}
@@ -228,7 +228,7 @@ h1{{font-size:60px;font-weight:900;letter-spacing:-.01em;margin-top:34px;line-he
 .goal-row b{{font-family:var(--mono);color:var(--text);font-size:18px}}
 .goal-big{{font-family:var(--mono);font-size:52px;font-weight:800;margin-top:14px;color:var(--text);line-height:1}}
 .goal-big span{{font-family:var(--font);font-size:17px;font-weight:600;color:var(--text2)}}
-.lever{{display:flex;gap:16px;align-items:flex-start;background:rgba(193,95,60,.06);border:1px solid rgba(193,95,60,.2);border-radius:14px;padding:22px 26px;margin-top:20px;font-size:18px;color:var(--text2)}}
+.lever{{display:flex;gap:16px;align-items:flex-start;background:rgba(0,212,170,.07);border:1px solid rgba(0,212,170,.28);border-radius:14px;padding:22px 26px;margin-top:20px;font-size:18px;color:var(--text2)}}
 .lever-i{{font-size:26px}}.lever b{{color:var(--text)}}.lever s{{color:var(--text3)}}.lever em{{color:var(--accent);font-style:normal;font-weight:800;font-size:20px}}
 .note{{font-size:14px;color:var(--text3);margin-top:16px;font-family:var(--mono)}}
 .tbl{{width:100%;border-collapse:collapse}}
@@ -238,9 +238,9 @@ h1{{font-size:60px;font-weight:900;letter-spacing:-.01em;margin-top:34px;line-he
 .t-num{{font-family:var(--mono);font-size:18px;white-space:nowrap}}
 .delta{{font-size:13px;color:var(--text3)}}.delta.up{{color:var(--good)}}
 .badge{{font-family:var(--mono);font-size:12px;padding:4px 11px;border-radius:999px;white-space:nowrap;background:var(--surface2);color:var(--text2)}}
-.badge.ok{{background:rgba(19,115,51,.1);color:var(--good)}}
-.badge.warn{{background:rgba(160,122,60,.13);color:var(--accent3)}}
-.badge.bad{{background:rgba(192,57,43,.1);color:var(--danger)}}
+.badge.ok{{background:rgba(0,212,170,.14);color:var(--good)}}
+.badge.warn{{background:rgba(245,185,66,.15);color:var(--accent3)}}
+.badge.bad{{background:rgba(255,91,110,.15);color:var(--danger)}}
 .verdict{{font-size:14px;font-weight:600;white-space:nowrap}}
 .verdict.ok{{color:var(--good)}}.verdict.warn{{color:var(--accent3)}}.verdict.bad{{color:var(--danger)}}
 .diag{{list-style:none}}.diag li{{font-size:18px;padding:13px 0 13px 28px;position:relative;border-bottom:1px solid var(--border)}}
@@ -299,7 +299,7 @@ h1{{font-size:60px;font-weight:900;letter-spacing:-.01em;margin-top:34px;line-he
 <script>{echarts}</script>
 <script>
 var D={data};
-var C={{clay:'#c15f3c',slate:'#5c6b7a',ochre:'#a07a3c',text:'#1a1a18',t2:'#56544e',t3:'#8a877e',danger:'#c0392b',good:'#137333',line:'rgba(20,20,19,.10)'}};
+var C={{clay:'#00d4aa',slate:'#7c5cfc',ochre:'#f5b942',text:'#f0f0f4',t2:'#a6a6b2',t3:'#6a6a78',danger:'#ff5b6e',good:'#00d4aa',line:'rgba(255,255,255,.10)'}};
 var FONT="'Noto Sans SC','PingFang SC',sans-serif";
 function I(id,opt){{var el=document.getElementById(id);if(!el)return;var ch=echarts.init(el,null,{{renderer:'canvas'}});opt.animation=false;opt.textStyle={{fontFamily:FONT,color:C.t2}};ch.setOption(opt);window.addEventListener('resize',function(){{ch.resize();}});}}
 // 漏斗
@@ -318,7 +318,7 @@ data:D.funnel}}]}});
  xAxis:{{type:'category',boundaryGap:false,data:cats.map(function(d){{return d.slice(5);}}),axisLine:{{lineStyle:{{color:C.line}}}},axisLabel:{{color:C.t3}}}},
  yAxis:[{{type:'value',name:'观看',axisLabel:{{color:C.t3}},splitLine:{{lineStyle:{{color:C.line}}}}}},
         {{type:'value',name:'涨粉',minInterval:1,axisLabel:{{color:C.t3}},splitLine:{{show:false}}}}],
- series:[{{name:'每日观看',type:'line',smooth:true,symbolSize:8,data:ser(D.trend_views),itemStyle:{{color:C.clay}},lineStyle:{{width:3,color:C.clay}},areaStyle:{{color:'rgba(193,95,60,.08)'}}}},
+ series:[{{name:'每日观看',type:'line',smooth:true,symbolSize:8,data:ser(D.trend_views),itemStyle:{{color:C.clay}},lineStyle:{{width:3,color:C.clay}},areaStyle:{{color:'rgba(0,212,170,.12)'}}}},
          {{name:'每日涨粉',type:'line',yAxisIndex:1,smooth:true,symbolSize:8,data:ser(D.trend_newfans),itemStyle:{{color:C.slate}},lineStyle:{{width:3,color:C.slate}}}}],
  graphic:single?[{{type:'text',left:'center',top:'middle',style:{{text:'数据积累中：每天自动拉一次，\\n≥2 天后这里出现完整趋势线',fill:C.t3,fontSize:15,fontFamily:FONT,textAlign:'center'}}}}]:[]}});
 }})();
@@ -343,7 +343,7 @@ def main():
     ap.add_argument("--font-dir", default=DEF_FONT)
     args = ap.parse_args()
     inp = args.inp or os.path.join(args.data_dir, "report_data.json")
-    out = args.out or os.path.join(args.data_dir, "渠道数据复盘报告.html")
+    out = args.out or os.path.join(args.data_dir, "渠道数据复盘报告-V1暗黑.html")
     with open(inp, encoding="utf-8") as f:
         R = json.load(f)
     open(out, "w", encoding="utf-8").write(build(R, args.font_dir))

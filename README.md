@@ -4,19 +4,20 @@
 > 把社媒账号的公开后台数据，做成一份能看、能交付、能指导动作的复盘报告。
 
 一个 [Claude Agent Skill](https://docs.claude.com/en/docs/claude-code/skills)：
-**每日取数 → 分析 → 生成 V2 米白「渠道数据复盘报告」HTML → 给分优先级的数据建议**。
+**每日取数 → 分析 → 生成 V1 暗黑「渠道数据复盘报告」HTML → 给分优先级的数据建议**。
 v1 覆盖小红书；结构按多渠道/多账号预留。
 
 ![渠道数据复盘报告 示例](docs/report-preview.png)
 
-> ☝️ 用本工具给作者自己账号（@huiyonghkw）生成的真实报告：转化漏斗 + 双仪表盘、涨粉目标测算、指标基准对照、近 7 日趋势、笔记红黑榜逐篇判决、本周行动清单。
+> ☝️ 用本工具给作者自己账号（@huiyonghkw）生成的真实报告。**判断优先**：开头先给「账号状态 + 本周只做这一件事 + 别做什么」，再是上期复盘（闭环验证）、诊断、建议；图表（漏斗/趋势/红黑榜/限流体检）一律降级为「支撑数据」放后面。判断型报告默认是"安静"的——模块只在有话说时才冒头。
 
 ## 能做什么
 
 - **取数**：用 [OpenCLI](https://github.com/jackwener/opencli) 复用 Chrome 登录态，拉小红书创作者后台的粉丝 / 转化漏斗 / 逐篇数据 / 每日明细，追加进 CSV 时间序列。
 - **分析**：算固定指标体系——涨粉漏斗（观看→主页→涨粉）、出池诊断、笔记红黑榜、趋势、**涨粉目标测算**（到 N 粉还需多少出池笔记 + 转化率杠杆）、指标基准对照、逐篇判决。
-- **报告**：输出自托管单文件 HTML（V2 米白），ECharts 漏斗 / 仪表盘 / 趋势 / 条形图，可截图 / 转 PDF / 转长图交付。
-- **建议**：规则引擎给分优先级动作（P0 出池 / P1 转化 / P2 主页 / 底线 合规）+ 本周行动清单。
+- **报告**：输出自托管单文件 HTML（**V1 暗黑科技风**，绿/紫霓虹 + 思源黑体），ECharts 漏斗 / 趋势 / 红黑榜条形图，可截图 / 转 PDF / 转长图交付。判断在前、数据降为证据。
+- **建议**：围绕「复制标杆」（动态识别观看最高那条）的实验化动作，每条挂账号真实数字；结论区只给「本周一件事」+ 显式「别做什么」（止损 / 聚焦）。
+- **闭环验证**：`复盘历史.json` 存每期结论 + 指标，下期自动对比「上次让你做什么 → 数据怎么动 → 有没有执行」。
 
 ## 合规底线（写进 skill）
 
@@ -28,7 +29,7 @@ v1 覆盖小红书；结构按多渠道/多账号预留。
 # 前置：opencli + Chrome 登录态 + 扩展已连（opencli doctor 看 [OK] Extension）
 python3 scripts/pull.py        --data-dir <数据目录>   # ① 取数 → CSV
 python3 scripts/analyze.py     --data-dir <数据目录>   # ② 分析 → report_data.json
-python3 scripts/build_report.py --data-dir <数据目录>  # ③ 报告 → 渠道数据复盘报告.html
+python3 scripts/build_report.py --data-dir <数据目录>  # ③ 报告 → 渠道数据复盘报告-V1暗黑.html
 ```
 
 数据默认写到当前工作目录下的 `渠道数据分析师/`（可用 `--data-dir` 改；多账号给各自目录）。
@@ -65,7 +66,7 @@ git clone https://github.com/huiyonghkw/hekouwang-channel-analyst-skill.git \
 | 依赖 | 类型 | 用在哪 | 缺了会怎样 |
 |---|---|---|---|
 | [OpenCLI](https://github.com/jackwener/opencli) / agent-reach | 工具（必需取数） | 复用 Chrome 登录态拉创作者后台 | 取不到数；但已有 CSV 仍可分析 + 出报告 |
-| `hekouwang-content-factory` | 软依赖 | 报告 V2 米白字体 / 视觉；封面返工、小红书图也走它 | 字体回退——`build_report.py --font-dir` 换系统字体即可 |
+| `hekouwang-content-factory` | 软依赖 | 报告字体（Anthropic + 思源黑体）/ 视觉；封面返工、小红书图也走它 | 字体回退——`build_report.py --font-dir` 换系统字体即可 |
 | `hekouwang-claude-skill-doctor-skill` | 质量 | 本 skill 自身体检（现 100/100） | 不影响运行 |
 | Apache ECharts | 内置 | 报告图表（已内联进 `assets/`） | 已随仓库分发，无需联网 |
 
