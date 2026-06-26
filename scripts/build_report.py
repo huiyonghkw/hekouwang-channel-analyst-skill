@@ -92,9 +92,10 @@ def build(R, font_dir):
             f'<td class="t-num">{n["观看"]} {d_h}</td><td class="t-num">{n["赞"]}</td>'
             f'<td class="t-num">{n["藏"]}</td><td class="t-num">{n["评"]}</td>'
             f'<td>{badge}</td><td><span class="verdict {vcls}">{esc(n.get("判决",""))}</span></td></tr>')
+    notes_h = max(260, len(R.get("笔记", [])) * 34 + 60)   # 每篇给够行高，bar 不会细成线
     notes_sec = (
         '<div class="card"><div class="sec-h">笔记红黑榜 · 逐篇判决</div>'
-        '<div id="c_notes" class="echart" style="height:240px"></div>'
+        f'<div id="c_notes" class="echart" style="height:{notes_h}px"></div>'
         '<table class="tbl" style="margin-top:18px"><thead><tr><th>笔记</th><th>观看</th><th>赞</th>'
         '<th>藏</th><th>评</th><th>状态</th><th>建议动作</th></tr></thead>'
         f'<tbody>{rows}</tbody></table></div>') if R.get("笔记") else ""
@@ -326,7 +327,7 @@ I('c_notes',{{tooltip:{{trigger:'axis',axisPointer:{{type:'shadow'}}}},grid:{{le
 xAxis:{{type:'value',axisLabel:{{color:C.t3}},splitLine:{{lineStyle:{{color:C.line}}}}}},
 yAxis:{{type:'category',data:D.notes.map(function(n){{return n.name;}}),axisLine:{{lineStyle:{{color:C.line}}}},
 axisLabel:{{color:C.t2,fontSize:13,width:152,overflow:'truncate',align:'right'}}}},
-series:[{{type:'bar',barWidth:'52%',data:D.notes.map(function(n){{return {{value:n.value,itemStyle:{{color:n.out?C.good:C.danger,borderRadius:[0,6,6,0]}}}};}}),
+series:[{{type:'bar',barWidth:'62%',data:D.notes.map(function(n){{return {{value:n.value,itemStyle:{{color:n.out?C.good:C.danger,borderRadius:[0,6,6,0]}}}};}}),
 label:{{show:true,position:'right',color:C.t2,fontFamily:'monospace'}},
 markLine:{{symbol:'none',data:[{{xAxis:300,label:{{formatter:'出池线 300',position:'end',color:C.t3}},lineStyle:{{color:C.t3,type:'dashed'}}}}]}}}}]}});
 </script>
