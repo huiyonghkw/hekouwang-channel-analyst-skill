@@ -243,10 +243,92 @@ def main():
     # ── 本周行动清单：已并入"行动建议"（避免与建议重复），不再单列 ──
     R["行动清单"] = []
 
+    # ── 结论（判断优先：一句话状态 + 本周唯一一件事 + 止损） ──
+    winner = max(notes, key=lambda n: n["观看"]) if notes else None
+    concl = {}
+    if not notes:
+        concl = {"状态": "账号刚起步，还没有可分析的笔记。",
+                 "本周一件事": "先发 1–2 条，让分析师有数据可看。", "别做": ""}
+    elif avg_v < COLD:
+        concl = {
+            "状态": f"还卡在冷启动池：{len(notes)} 篇里只有 {len(out_pool)} 篇破 {COLD} 观看。",
+            "本周一件事": f"下一条主攻封面：参考观看最高的《{winner['标题']}》（{winner['观看']}），首图改成信息流抓眼版，目标破 {COLD} 出冷启动池。",
+            "别做": "别一次想优化所有指标——这阶段只有'被看见'要紧，关注钩子 / 主页装修都往后放。"}
+    else:
+        tgt = int(winner["观看"] * 0.8)
+        别做 = ("别回头返工已经沉底的笔记，性价比最低；先把标杆复制出第二条。"
+                if not (fr is not None and fr >= LOW_FOLLOW_RATE and hr is not None and hr < GOOD_HOME_RATE)
+                else f"别在关注钩子 / 转化上耗——主页转化已健康（{fr}%），问题是没人看见，不是留不住。")
+        concl = {
+            "状态": f"已跑通出池（《{winner['标题']}》破 {winner['观看']}），阶段任务从'出不出池'变成'能不能复制'。",
+            "本周一件事": f"照《{winner['标题']}》的封面 + 选题公式再做一条，目标观看破 {tgt}。",
+            "别做": 别做}
+    snaps = R["数据区间"].get("总快照数", 1)
+    concl["信心"] = (f"样本还薄（{snaps} 快照 / {len(notes)} 篇），以上是方向性判断；连续跑几期会越来越准。"
+                     if snaps < 3 or len(notes) < 5 else "")
+    R["结论"] = concl
+
+    # ── 闭环验证（与上一期对比：上次让你做什么 → 数据怎么动 → 有没有执行） ──
+    hist_path = os.path.join(D, "复盘历史.json")
+    history = []
+    if os.path.exists(hist_path):
+        try:
+            history = json.load(open(hist_path, encoding="utf-8"))
+        except (ValueError, OSError):
+            history = []
+    note_keys = sorted({(n.get("发布时间") or n.get("标题")) for n in notes})
+    cur_rec = {"最新日期": latest, "生成时间": R["生成时间"],
+               "粉丝": R["kpi"].get("粉丝数"), "观看": R["漏斗"].get("观看"),
+               "出池数": len(out_pool), "笔记数": len(notes),
+               "标杆标题": winner["标题"] if winner else None,
+               "标杆观看": winner["观看"] if winner else None,
+               "本周一件事": concl.get("本周一件事", ""), "笔记keys": note_keys}
+    prev_rec = next((h for h in reversed(history)
+                     if h.get("最新日期") and h.get("最新日期") != latest), None)
+    if prev_rec:
+        def dline(label, old, new):
+            if old is None or new is None:
+                return None
+            d = new - old
+            arrow = "↑" if d > 0 else ("↓" if d < 0 else "→")
+            return {"指标": label, "上次": old, "现在": new,
+                    "变化": f"{arrow}{'+' if d > 0 else ''}{d}", "向好": d >= 0}
+        recap = {"上次日期": prev_rec.get("最新日期"),
+                 "上次任务": prev_rec.get("本周一件事", ""), "指标变化": []}
+        for ln in (dline("粉丝", prev_rec.get("粉丝"), cur_rec["粉丝"]),
+                   dline("7日观看", prev_rec.get("观看"), cur_rec["观看"]),
+                   dline("出池笔记数", prev_rec.get("出池数"), cur_rec["出池数"])):
+            if ln:
+                recap["指标变化"].append(ln)
+        new_keys = [k for k in note_keys if k not in set(prev_rec.get("笔记keys", []))]
+        if new_keys:
+            newest = max((n for n in notes if (n.get("发布时间") or n.get("标题")) in new_keys),
+                         key=lambda n: n["观看"], default=None)
+            if newest:
+                base = (prev_rec.get("标杆观看") or 0) * 0.6
+                recap["执行"] = f"上次后发了新内容《{newest['标题']}》（{newest['观看']} 观看）。"
+                recap["执行向好"] = newest["观看"] >= base
+        else:
+            recap["执行"] = "上次到现在没发新内容——'本周一件事'还没动，建议悬而未决，先把它做掉。"
+            recap["执行向好"] = False
+        R["上周复盘"] = recap
+    else:
+        R["上周复盘"] = None
+    # 写回历史（同一快照日重跑则替换，保持每个快照日一条）
+    if history and history[-1].get("最新日期") == latest:
+        history[-1] = cur_rec
+    else:
+        history.append(cur_rec)
+    try:
+        json.dump(history, open(hist_path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    except OSError:
+        pass
+
     with open(out, "w", encoding="utf-8") as f:
         json.dump(R, f, ensure_ascii=False, indent=2)
     print("wrote", out)
-    print(f"  快照 {len(dates)} 个 | 最新 {latest} | 笔记 {len(notes)} 篇 | 建议 {len(adv)} 条")
+    print(f"  快照 {len(dates)} 个 | 最新 {latest} | 笔记 {len(notes)} 篇 | 建议 {len(adv)} 条 | "
+          f"上期对比 {'有' if R.get('上周复盘') else '无(首期)'}")
 
 
 if __name__ == "__main__":
