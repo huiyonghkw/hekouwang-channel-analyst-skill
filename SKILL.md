@@ -62,6 +62,19 @@ python3 <skill>/scripts/build_report.py --data-dir 渠道数据分析师
 | 报告 HTML 规范 / 图表 / 自用版 vs 客户版 / 转 PDF·长图 | `references/03-报告设计.md` |
 | 付费服务化：套餐 / 定价参考 / 获客 / 交付 / 话术 | `references/04-服务化.md` |
 
+## 生态依赖（与哪些 skill / 工具协作）
+
+性质＝**软依赖**：核心三件套（pull/analyze/build_report）能独立跑；下面是协作关系，不是硬绑定。
+
+| 依赖 | 类型 | 用在哪 | 缺了会怎样 |
+|---|---|---|---|
+| OpenCLI / `agent-reach` | 工具（必需取数） | 复用 Chrome 登录态拉创作者后台 | 取不到数；但已有 CSV 仍可分析+出报告 |
+| `hekouwang-content-factory` | 软依赖 | 报告 V2 米白字体/视觉取自它；**封面返工/小红书图**也走它 | 字体回退——`build_report.py --font-dir` 换系统字体即可 |
+| `hekouwang-claude-skill-doctor-skill` | 质量 | 本 skill 自身体检（现 100/100） | 不影响运行 |
+| Apache ECharts | 内置 | 报告图表（已内联进 `assets/`） | 已随仓库分发，无需联网 |
+
+> 增值服务如何组合这些 skill（content-factory / stock-data-reader / yandu-deck）见 `references/04-服务化.md`。
+
 ## 后续扩展（路线图）
 
 抖音/视频号/B站/头条/公众号多渠道接入、周报/月报模板、多账号批量、对标账号横评、评论区舆情。每加一项，改对应 reference + scripts，别堆进本文件。
