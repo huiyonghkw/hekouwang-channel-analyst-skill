@@ -216,7 +216,8 @@ def main():
     if R["漏斗"].get("观看") and R["漏斗"].get("涨粉") is not None and R["漏斗"]["观看"]:
         fans_per_view = R["漏斗"]["涨粉"] / R["漏斗"]["观看"]
     R["每千观看涨粉"] = round(fans_per_view * 1000, 1) if fans_per_view else None
-    if cur_fans is not None and fans_per_view:
+    # 「还差多少篇到 500/1000 粉」只在出池达标后才算——卡在出池时这数字只会劝退（按需浮现）
+    if cur_fans is not None and fans_per_view and avg_v >= COLD:
         for tgt in TARGETS:
             need_fans = tgt - cur_fans
             if need_fans <= 0:
@@ -296,21 +297,8 @@ def main():
         }
         R["受众画像"] = {"性别": gender, "主年龄": top_weighted("主年龄"),
                      "top城市": top_weighted("top城市"), "top兴趣": top_weighted("top兴趣")}
-        # 诊断增强
-        if flow:
-            rec_total = round(flow.get("视频推荐", 0) + flow.get("首页推荐", 0), 1)
-            sea = flow.get("搜索", 0)
-            R["诊断"].append(
-                f"流量结构：{rec_total}% 推荐 · {sea}% 搜索 · {round(flow.get('关注页面', 0), 1)}% 关注"
-                + ("——几乎全靠推荐，搜索沉淀近零、长尾弱。" if sea < 3 else "——已有搜索长尾。"))
-        if avg_ctr is not None:
-            R["诊断"].append(
-                f"平均封面点击率 {avg_ctr}%（信息流健康区 ~5–10%）"
-                + ("，封面是当前最大可提升项。" if avg_ctr < 5 else "，封面及格。"))
-        if gender:
-            R["诊断"].append(
-                f"受众：男 {gender['男']}% · 主力 {R['受众画像']['主年龄']} · 兴趣偏 {R['受众画像']['top兴趣']}"
-                "——和'AI工作流/程序员'人设吻合，选题可继续往这群人的真实痛点扎。")
+        # 注：流量/CTR/受众不再各占一行诊断（避免仪表盘化）——
+        # 数字折叠进报告的「数据快照」行；只有需要驱动决策时才浮现（限流预警 / 结论用 CTR 纠偏）。
 
     # ── 结论（判断优先：一句话状态 + 本周唯一一件事 + 止损） ──
     winner = max(notes, key=lambda n: n["观看"]) if notes else None
